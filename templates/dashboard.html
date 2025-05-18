@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Mini Docker Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 30px;
+      background-color: #f9f9f9;
+    }
+    .section {
+      background: #ffffff;
+      padding: 20px;
+      margin-bottom: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h2 {
+      margin-bottom: 15px;
+      color: #333;
+    }
+    input, select {
+      padding: 8px;
+      width: 100%;
+      margin: 5px 0 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    button {
+      padding: 10px 15px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 5px;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    .output {
+      background: #f1f1f1;
+      padding: 10px;
+      margin-top: 15px;
+      white-space: pre-wrap;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    .btn-small {
+      font-size: 0.9em;
+      margin-left: 10px;
+      background: #28a745;
+    }
+    .btn-danger {
+      background: #dc3545;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Container Section -->
+  <div class="section">
+    <h2>🧱 Container Manager</h2>
+    <input id="cname" placeholder="Container Name">
+    <input id="cmem" type="number" placeholder="Memory Pages">
+    <input id="cports" placeholder="Ports (comma separated)">
+    <select id="calgo">
+      <option value="FIFO">FIFO</option>
+      <option value="LRU">LRU</option>
+      <option value="OPTIMAL">OPTIMAL</option>
+      <option value="CLOCK">CLOCK</option>
+    </select>
+    <button onclick="createContainer()">Create Container</button>
+    <div class="output" id="containers"></div>
+  </div>
+
+  <!-- Paging Simulator Section -->
+  <div class="section">
+    <h2>📘 Paging Simulator</h2>
+    <input id="pages" placeholder="Pages (e.g. 1,2,3,4,1,2)">
+    <input id="capacity" type="number" placeholder="Frame Capacity">
+    <select id="algo">
+      <option value="FIFO">FIFO</option>
+      <option value="LRU">LRU</option>
+      <option value="OPTIMAL">OPTIMAL</option>
+      <option value="CLOCK">CLOCK</option>
+    </select>
+    <button onclick="simulate()">Run Simulation</button>
+    <div class="output" id="simout"></div>
+    <canvas id="faultChart" height="100"></canvas>
+    <canvas id="frameHistory" height="100"></canvas>
+  </div>
+
+  <script>
+    function createContainer() {
+      fetch("/containers", {
+        method: "POST",
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: document.getElementById("cname").value,
+          memory_pages: document.getElementById("cmem").value,
+          ports: document.getElementById("cports").value,
+          algorithm: document.getElementById("calgo").value
+        })
+      })
+      .then(res => res.json())
+      .then(updateContainers);
+    }
+
+    function deleteContainer(id) {
+      fetch(`/containers/${id}/delete`, { method: "DELETE" })
+        .then(updateContainers);
+    }
+
+    function toggleStatus(id) {
+      fetch(`/containers/${id}/toggle`, { method: "POST" })
+        .then(updateContainers);
+    }
+
+    function updateContainers() {
+      fetch("/containers")
+        .then(res => res.json())
+        .then(data => {
+          let html = "";
+          data.containers.forEach(c => {
+            html += `
+              🔹 <b>${c.name}</b> | ID: ${c.id}<br>
+              Pages: ${c.memory_pages} | Algorithm: ${c.algorithm} | Ports: ${c.ports.join(', ')}<br>
+              Status: <span style="color:${c.is_running ? 'green' : 'red'}">${c.is_running ? 'Running' : 'Stopped'}</span>
+              <button class="btn-small" onclick="toggleStatus('${c.id}')">Toggle</button>
+              <button class="btn-small btn-danger" onclick="deleteContainer('${c.id}')">Delete</button>
+              <hr>`;
+          });
+          document.getElementById("containers").innerHTML = html;
+        });
+    }
+
+    function simulate() {
+      fetch("/simulate", {
+        method: "POST",
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pages: document.getElementById("pages").value,
+          capacity: document.getElementById("capacity").value,
+          algorithm: document.getElementById("algo").value
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById("simout").textContent = JSON.stringify(data, null, 2);
+
+        const labels = [...Array(data.history.length).keys()];
+        const usage = data.history.map(f => f.length);
+
+        new Chart(document.getElementById("faultChart"), {
+          type: 'bar',
+          data: {
+            labels: ["Page Faults"],
+            datasets: [{
+              label: "Total Faults",
+              data: [data.page_faults],
+              backgroundColor: "#dc3545"
+            }]
+          }
+        });
+
+        new Chart(document.getElementById("frameHistory"), {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: "Frames Used Over Time",
+              data: usage,
+              borderColor: "#007bff",
+              fill: false
+            }]
+          }
+        });
+      });
+    }
+
+    updateContainers();
+  </script>
+
+</body>
+</html>
