@@ -14,10 +14,6 @@ Web UI using Flask, HTML, JS, and inline CSS
 
 Designed for educational use (OS & virtualization concepts)
 
-🖼 Project Preview
-(📌 Add screenshots to your GitHub repo if available)
-
-
 
 🛠️ Technologies Used
 Backend: Python, Flask
